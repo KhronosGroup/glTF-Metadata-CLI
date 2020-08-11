@@ -1,0 +1,18 @@
+[package]
+name = "glTF-Metadata-CLI"
+version = "1.0.0-alpha02"
+authors = ["Adam Morris <adam.n.morris@target.com>"]
+description = "CLI tool for managing KHR_XMP metadata within a glTF files"
+edition = "2018"
+
+[dependencies]
+clap = "~2.33"
+serde = { version = "~1.0", features = ["derive"] }
+serde_json = "~1.0"
+# The gltf crate is _only_ used for writing and reading Glb files. An explanation is included in gltf.rs for why
+#   gltf-rs wasn't used for all of the JSON.
+gltf = "~0.15"
+
+[[bin]]
+name = "gltfxmp"
+path = "src/main.rs"
