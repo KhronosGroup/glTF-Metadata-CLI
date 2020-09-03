@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2020 2014-2020 The Khronos Group Inc.
+//
+// SPDX-License-Identifier: Apache-2.0
+
 #[test]
 fn gltf_files_preserved() {
     // TODO: Can currently manually do this using jq, but would be good to have a unit

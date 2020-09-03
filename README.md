@@ -2,6 +2,10 @@
 
 CLI tool for managing metadata within glTF files using the KHR_XMP extension.
 
+## NOTICE
+
+**Binaries are not yet available, but will be coming very soon!** In the meantime please follow the section below if you'd like to try out the alpha release.
+
 # How to use
 
 Currently, binaries are not available. This will be rectified soon. In order to build a copy for yourself, you will need to install and configure [Rust for your platform](https://www.rust-lang.org/tools/install).
@@ -43,7 +47,7 @@ cargo run -- -i ./glTF-Sample-Models/2.0/DamagedHelmet/glTF-Binary/DamagedHelmet
 
 # Future milestones
 
-This section is formatted like "PRIORITY: Milestone" to give an idea of how important the milestone is to final 1.0.0 release.
+This section is formatted as "PRIORITY: Milestone" to give an idea of how important the milestone is to final 1.0.0 release.
 
  - CRITICAL: Pre-built binaries for each platform.
  - HIGH: Input via command-line parameters.
@@ -51,6 +55,10 @@ This section is formatted like "PRIORITY: Milestone" to give an idea of how impo
  - MEDIUM: JSON/XMP input via Pipe.
  - MEDIUM: Support for multiple packets.
  - LOW: Extraction of *KHR_xmp* metadata into a JSON file.
+
+# Known issues
+
+ - `xmp:MetadataDate` is not being updated or written.
 
 # Version Notes
 

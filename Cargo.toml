@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2020 2014-2020 The Khronos Group Inc.
+#
+# SPDX-License-Identifier: Apache-2.0
+
 [package]
 name = "glTF-Metadata-CLI"
 version = "1.0.0-alpha02"

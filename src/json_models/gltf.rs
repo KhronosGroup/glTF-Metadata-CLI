@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2020 2014-2020 The Khronos Group Inc.
+//
+// SPDX-License-Identifier: Apache-2.0
+
 use crate::json_models::asset::Asset;
 use crate::json_models::extension::{Extension, ExtensionsOnly};
 use serde::{Deserialize, Serialize};

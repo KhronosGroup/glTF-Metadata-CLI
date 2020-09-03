@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2020 2014-2020 The Khronos Group Inc.
+//
+// SPDX-License-Identifier: Apache-2.0
+
 use std::collections::HashMap;
 use serde::{Serialize, Deserialize};
 use serde_json::Value;
