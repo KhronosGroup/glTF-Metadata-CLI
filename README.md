@@ -25,13 +25,13 @@ cargo run -- -i examples/Box.gltf --list
 To create a version of the Boombox sample with metadata use:
 
 ```shell script
-cargo run -- -i glTF-Sample-Models/2.0/BoomBox/glTF/BoomBox.gltf -o glTF-Sample-Models/2.0/BoomBox/glTF/BoomBox_metadata.gltf -j examples/sample.json
+cargo run -- -i glTF-Sample-Models/2.0/BoomBox/glTF/BoomBox.gltf -o glTF-Sample-Models/2.0/BoomBox/glTF/BoomBox_metadata.gltf -j examples/sample.khr_xmp.json
 ```
 
 You can also read and write from `.glb` files as well. To create a version of the DamagedHelmet binary glTF sample with metadata, use:
 
 ```shell script
-cargo run -- -i ./glTF-Sample-Models/2.0/DamagedHelmet/glTF-Binary/DamagedHelmet.glb -o DamagedHelmet_metadata.glb -j examples/sample.json
+cargo run -- -i ./glTF-Sample-Models/2.0/DamagedHelmet/glTF-Binary/DamagedHelmet.glb -o DamagedHelmet_metadata.glb -j examples/sample.khr_xmp.json
 ```
 
 # Available Arguments

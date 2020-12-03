@@ -42,7 +42,7 @@ mod test {
     use super::*;
     use std::fs::read_to_string;
 
-    const EXAMPLE_SIMPLE_JSON_PATH: &str = "./examples/sample.json";
+    const EXAMPLE_SIMPLE_JSON_PATH: &str = "./examples/sample.khr_xmp.json";
     const BOX_PATH: &str = "./examples/Box.gltf";
     const SCIFI_HELMET_PATH: &str = "./glTF-Sample-Models/2.0/SciFiHelmet/glTF/SciFiHelmet.gltf";
 
@@ -58,7 +58,7 @@ mod test {
 
         let expected = read_to_string(path).unwrap();
 
-        // Actual needs an additional newline as sample.json should have one.
+        // Actual needs an additional newline as sample.khr_xmp.json should have one.
         let actual = format!(
             "{}\n",
             serde_json::to_string_pretty(&json.unwrap()).unwrap()

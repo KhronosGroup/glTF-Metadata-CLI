@@ -8,12 +8,14 @@ extern crate serde;
 extern crate serde_json;
 
 use crate::io_helpers::{open_reader, open_writer, read_gltf, read_json, write_gltf};
-use crate::json_models::extension::{Extension, PacketExtension};
+use crate::json_models::extension::{Extension};
 use crate::json_models::gltf::Gltf;
-use crate::json_models::khr_xmp::{KhrXmp, KhrXmpPacket};
+use crate::json_models::khr_xmp::KhrXmp;
+use crate::managers::Manager;
+use crate::managers::khr_xmp_manager::KhrXmpManager;
 use clap::{App, Arg};
 use gltf::Glb;
-use std::borrow::{Borrow, Cow};
+use std::borrow::Cow;
 use std::error::Error;
 use std::ffi::OsStr;
 use std::path::Path;
@@ -21,6 +23,7 @@ use std::process::exit;
 
 mod io_helpers;
 mod json_models;
+mod managers;
 
 const NAME: &str = env!("CARGO_PKG_NAME");
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -77,101 +80,11 @@ fn list_gltf_metadata(path: &Path) -> Result<(), String> {
     };
 
     match gltf {
-        Ok(g) => print_gltf(g),
+        Ok(g) => {
+            let manager = KhrXmpManager::new(g);
+            manager.print_gltf()
+        }
         Err(e) => Err(e.to_string()),
-    }
-}
-
-fn get_packet_value(extension: Option<PacketExtension>) -> Option<u64> {
-    match extension {
-        None => None,
-        Some(ex) => match ex.khr_xmp {
-            None => None,
-            Some(xmp) => match xmp.packet {
-                None => None,
-                Some(index) => Some(index),
-            },
-        },
-    }
-}
-
-fn print_gltf(gltf: Gltf) -> Result<(), String> {
-    match gltf.extensions {
-        Some(extension) => match extension.khr_xmp {
-            Some(xmp) => {
-                let mut applied_packets: Vec<PacketApplied> = vec![];
-
-                match get_packet_value(gltf.asset.extensions) {
-                    Some(index) => applied_packets.push(PacketApplied::Asset(index)),
-                    None => (),
-                }
-
-                // TODO: Need to clean this up. Lots of repeat code here.
-                for animation in gltf.animations.unwrap_or_default() {
-                    match get_packet_value(animation.extensions) {
-                        Some(index) => applied_packets.push(PacketApplied::Animations(index)),
-                        None => (),
-                    }
-                }
-
-                for image in gltf.images.unwrap_or_default() {
-                    match get_packet_value(image.extensions) {
-                        Some(index) => applied_packets.push(PacketApplied::Images(index)),
-                        None => (),
-                    }
-                }
-
-                for material in gltf.materials.unwrap_or_default() {
-                    match get_packet_value(material.extensions) {
-                        Some(index) => applied_packets.push(PacketApplied::Materials(index)),
-                        None => (),
-                    }
-                }
-
-                for mesh in gltf.meshes.unwrap_or_default() {
-                    match get_packet_value(mesh.extensions) {
-                        Some(index) => applied_packets.push(PacketApplied::Meshes(index)),
-                        None => (),
-                    }
-                }
-
-                for node in gltf.nodes.unwrap_or_default() {
-                    match get_packet_value(node.extensions) {
-                        Some(index) => applied_packets.push(PacketApplied::Nodes(index)),
-                        None => (),
-                    }
-                }
-
-                for scene in gltf.scenes.unwrap_or_default() {
-                    match get_packet_value(scene.extensions) {
-                        Some(index) => applied_packets.push(PacketApplied::Scenes(index)),
-                        None => (),
-                    }
-                }
-
-                println!("KHR_xmp extension value:");
-                println!("{}", serde_json::to_string_pretty(&xmp).unwrap());
-
-                // TODO: I want to also include the name, if available, to make it easier to
-                //   figure out which packet corresponds exactly to which image/mesh/etc.
-                println!("\nPackets applied at:");
-                for packet in applied_packets {
-                    match packet {
-                        PacketApplied::Asset(index) => println!("\tAssets: {}", index),
-                        PacketApplied::Animations(index) => println!("\tAnimations: {}", index),
-                        PacketApplied::Images(index) => println!("\tImages: {}", index),
-                        PacketApplied::Materials(index) => println!("\tMaterials: {}", index),
-                        PacketApplied::Meshes(index) => println!("\tMeshes: {}", index),
-                        PacketApplied::Nodes(index) => println!("\tNodes: {}", index),
-                        PacketApplied::Scenes(index) => println!("\tScenes: {}", index),
-                    }
-                }
-
-                Ok(())
-            }
-            None => Err(NO_METADATA_FOUND_ERROR.to_string()),
-        },
-        None => Err(NO_METADATA_FOUND_ERROR.to_string()),
     }
 }
 
@@ -187,7 +100,10 @@ fn list_glb_metadata(path: &Path) -> Result<(), String> {
     };
 
     match serde_json::from_slice(glb.json.as_ref()) {
-        Ok(gltf) => print_gltf(gltf),
+        Ok(gltf) => {
+            let manager = KhrXmpManager::new(gltf);
+            manager.print_gltf()
+        }
         Err(e) => Err(e.to_string()),
     }
 }
@@ -195,152 +111,6 @@ fn list_glb_metadata(path: &Path) -> Result<(), String> {
 fn log_if_verbose(verbose: bool, message: &str) {
     if verbose {
         println!("{}", message);
-    }
-}
-
-fn clear_applied_packets(gltf: &mut Gltf) {
-    // There is maybe a more elegant way to do this, but brute force it for now.
-    if let Some(mut e) = gltf.asset.extensions.as_mut() {
-        e.khr_xmp = None;
-    }
-
-    if gltf.animations.is_some() {
-        for animation in gltf.animations.as_mut().unwrap() {
-            if let Some(mut e) = animation.extensions.as_mut() {
-                e.khr_xmp = None;
-            }
-        }
-    }
-
-    if gltf.images.is_some() {
-        for image in gltf.images.as_mut().unwrap() {
-            if let Some(mut e) = image.extensions.as_mut() {
-                e.khr_xmp = None;
-            }
-        }
-    }
-
-    if gltf.materials.is_some() {
-        for material in gltf.materials.as_mut().unwrap() {
-            if let Some(mut e) = material.extensions.as_mut() {
-                e.khr_xmp = None;
-            }
-        }
-    }
-
-    if gltf.meshes.is_some() {
-        for mesh in gltf.meshes.as_mut().unwrap() {
-            if let Some(mut e) = mesh.extensions.as_mut() {
-                e.khr_xmp = None;
-            }
-        }
-    }
-
-    if gltf.nodes.is_some() {
-        for node in gltf.nodes.as_mut().unwrap() {
-            if let Some(mut e) = node.extensions.as_mut() {
-                e.khr_xmp = None;
-            }
-        }
-    }
-
-    if gltf.scenes.is_some() {
-        for scene in gltf.scenes.as_mut().unwrap() {
-            if let Some(mut e) = scene.extensions.as_mut() {
-                e.khr_xmp = None;
-            }
-        }
-    }
-}
-
-//noinspection DuplicatedCode There's a lot of repeat code here because dealing with the lifetimes of the serde object is difficult due to our use of flatten.
-fn set_applied_packets(gltf: &mut Gltf, apply_to: Vec<PacketApplied>) {
-    // Right now we just apply to _all_ of a category.
-    for packet in apply_to {
-        match packet {
-            PacketApplied::Asset(i) => {
-                if let Some(e) = gltf.asset.extensions.as_mut() {
-                    e.khr_xmp = Some(KhrXmpPacket { packet: Some(i) });
-                } else {
-                    gltf.asset.extensions = Some(PacketExtension {
-                        khr_xmp: Some(KhrXmpPacket { packet: Some(i) }),
-                        other_extensions: Default::default(),
-                    });
-                };
-            }
-            PacketApplied::Animations(i) => {
-                for animation in gltf.animations.as_mut().unwrap() {
-                    if let Some(e) = animation.extensions.as_mut() {
-                        e.khr_xmp = Some(KhrXmpPacket { packet: Some(i) });
-                    } else {
-                        animation.extensions = Some(PacketExtension {
-                            khr_xmp: Some(KhrXmpPacket { packet: Some(i) }),
-                            other_extensions: Default::default(),
-                        });
-                    };
-                }
-            }
-            PacketApplied::Images(i) => {
-                for image in gltf.images.as_mut().unwrap() {
-                    if let Some(e) = image.extensions.as_mut() {
-                        e.khr_xmp = Some(KhrXmpPacket { packet: Some(i) });
-                    } else {
-                        image.extensions = Some(PacketExtension {
-                            khr_xmp: Some(KhrXmpPacket { packet: Some(i) }),
-                            other_extensions: Default::default(),
-                        });
-                    };
-                }
-            }
-            PacketApplied::Materials(i) => {
-                for material in gltf.materials.as_mut().unwrap() {
-                    if let Some(e) = material.extensions.as_mut() {
-                        e.khr_xmp = Some(KhrXmpPacket { packet: Some(i) });
-                    } else {
-                        material.extensions = Some(PacketExtension {
-                            khr_xmp: Some(KhrXmpPacket { packet: Some(i) }),
-                            other_extensions: Default::default(),
-                        });
-                    };
-                }
-            }
-            PacketApplied::Meshes(i) => {
-                for mesh in gltf.meshes.as_mut().unwrap() {
-                    if let Some(e) = mesh.extensions.as_mut() {
-                        e.khr_xmp = Some(KhrXmpPacket { packet: Some(i) });
-                    } else {
-                        mesh.extensions = Some(PacketExtension {
-                            khr_xmp: Some(KhrXmpPacket { packet: Some(i) }),
-                            other_extensions: Default::default(),
-                        });
-                    };
-                }
-            }
-            PacketApplied::Nodes(i) => {
-                for node in gltf.nodes.as_mut().unwrap() {
-                    if let Some(e) = node.extensions.as_mut() {
-                        e.khr_xmp = Some(KhrXmpPacket { packet: Some(i) });
-                    } else {
-                        node.extensions = Some(PacketExtension {
-                            khr_xmp: Some(KhrXmpPacket { packet: Some(i) }),
-                            other_extensions: Default::default(),
-                        });
-                    };
-                }
-            }
-            PacketApplied::Scenes(i) => {
-                for scene in gltf.scenes.as_mut().unwrap() {
-                    if let Some(e) = scene.extensions.as_mut() {
-                        e.khr_xmp = Some(KhrXmpPacket { packet: Some(i) });
-                    } else {
-                        scene.extensions = Some(PacketExtension {
-                            khr_xmp: Some(KhrXmpPacket { packet: Some(i) }),
-                            other_extensions: Default::default(),
-                        });
-                    };
-                }
-            }
-        }
     }
 }
 
@@ -359,7 +129,7 @@ fn update_gltf(
             "Opening & reading input file at path {}",
             input_path.display()
         )
-        .as_str(),
+            .as_str(),
     );
     let input_reader = open_reader(input_path)?;
     let mut gltf = read_gltf(input_reader)?;
@@ -377,6 +147,7 @@ fn update_gltf(
                 context: cloned.context,
                 packets: cloned.packets,
             }),
+            khr_xmp_json_ld: None,
             other_extensions: Default::default(),
         })
     }
@@ -389,10 +160,12 @@ fn update_gltf(
         gltf.extensions_used = Some(vec!["KHR_xmp".to_string()])
     }
 
+    let mut manager = KhrXmpManager::new(gltf);
+
     log_if_verbose(is_verbose, "Clearing all applied packets.");
-    clear_applied_packets(&mut gltf);
+    manager.clear_applied_packets();
     log_if_verbose(is_verbose, "Setting new packets.");
-    set_applied_packets(&mut gltf, apply_to);
+    manager.set_applied_packets(apply_to);
 
     log_if_verbose(
         is_verbose,
@@ -400,10 +173,10 @@ fn update_gltf(
             "Opening & writing to output file at path {}",
             output_path.display()
         )
-        .as_str(),
+            .as_str(),
     );
     let output_writer = open_writer(output_path)?;
-    write_gltf(output_writer, &gltf)?;
+    write_gltf(output_writer, manager.get_gltf())?;
 
     Ok(())
 }
@@ -446,6 +219,7 @@ fn update_glb(
                 context: cloned.context,
                 packets: cloned.packets,
             }),
+            khr_xmp_json_ld: None,
             other_extensions: Default::default(),
         })
     }
@@ -458,12 +232,14 @@ fn update_glb(
         gltf.extensions_used = Some(vec!["KHR_xmp".to_string()])
     }
 
-    log_if_verbose(is_verbose, "Clearing all applied packets.");
-    clear_applied_packets(&mut gltf);
-    log_if_verbose(is_verbose, "Setting new packets.");
-    set_applied_packets(&mut gltf, apply_to);
+    let mut manager = KhrXmpManager::new(gltf);
 
-    let json_data = serde_json::to_string_pretty(&gltf)?;
+    log_if_verbose(is_verbose, "Clearing all applied packets.");
+    manager.clear_applied_packets();
+    log_if_verbose(is_verbose, "Setting new packets.");
+    manager.set_applied_packets(apply_to);
+
+    let json_data = serde_json::to_string_pretty(manager.get_gltf())?;
     let json_offset = align_to_multiple_of_four(glb.json.len() as u32);
 
     let new_bin = glb.bin.unwrap_or_default().clone();
@@ -552,6 +328,19 @@ fn main() {
         //         .required_unless("list")
         //         .conflicts_with("json"),
         // )
+        .arg(
+            Arg::with_name("legacy")
+                .long("legacy")
+                .conflicts_with("migrate")
+                .hidden(true)
+                .help("Go through the legacy KHR_xmp flow. Testing only. Do not use.")
+        )
+        .arg(
+            Arg::with_name("migrate")
+                .short("m")
+                .long("migrate")
+                .help("Migrate KHR_xmp data to KHR_xmp_json_ld data")
+        )
         .arg(
             Arg::with_name("verbose")
                 .short("v")
@@ -658,7 +447,7 @@ fn main() {
                             Err(e) => return exit_on_error(e),
                             _ => (),
                         }
-                    },
+                    }
                 },
                 Err(e) => return exit_on_error(e),
             }
