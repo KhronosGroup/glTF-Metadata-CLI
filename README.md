@@ -77,4 +77,5 @@ This section is formatted as "PRIORITY: Milestone" to give an idea of how import
 ## 1.0.0-alpha03
 
  - Implemented support for the new *KHR_xmp_json_ld* extension replacing *KHR_xmp*.
-
+ - The `--legacy` switch is required for all operations using *KHR_xmp*. This includes listing existing *KHR_xmp* data.
+ - The `--migrate` switch has been added but is not usable yet. Will be released soon in the next release.
