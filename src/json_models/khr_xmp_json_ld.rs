@@ -28,4 +28,3 @@ pub struct KhrXmpJsonLdPacketList {
 pub struct KhrXmpJsonLd {
     pub packets: Vec<Value>,
 }
-
