@@ -7,7 +7,7 @@ extern crate gltf;
 extern crate serde;
 extern crate serde_json;
 
-use crate::io_helpers::{open_reader, open_writer, read_gltf, read_json, write_gltf};
+use crate::io_helpers::{open_reader, open_writer, read_gltf, write_gltf, read_legacy_json, read_json};
 use crate::json_models::extension::{Extension};
 use crate::json_models::gltf::Gltf;
 use crate::json_models::khr_xmp::KhrXmp;
@@ -63,7 +63,6 @@ enum ExitCode {
 }
 
 // TODO: Further reduce the number of unwraps to increase safety.
-// TODO: Move a lot of this code into separate modules.
 // TODO: Need unit tests. A lot of unit tests.
 
 /// Performs simple extension validation on a input path.
@@ -124,9 +123,158 @@ fn log_if_verbose(verbose: bool, message: &str) {
     }
 }
 
-// TODO: Probably can find a better way to handle updating using traits. I need to clean up this duplicate code.
+// TODO: These update functions need to be moved to the managers.
 //noinspection DuplicatedCode
 fn update_gltf(
+    input_path: &Path,
+    output_path: &Path,
+    metadata: &KhrXmpJsonLd,
+    apply_to: Vec<PacketApplied>,
+    is_verbose: bool,
+) -> Result<(), Box<dyn Error>> {
+    log_if_verbose(
+        is_verbose,
+        format!(
+            "Opening & reading input file at path {}",
+            input_path.display()
+        )
+            .as_str(),
+    );
+    let input_reader = open_reader(input_path)?;
+    let mut gltf = read_gltf(input_reader)?;
+
+    let cloned = metadata.clone();
+    if let Some(extensions) = gltf.extensions.as_mut() {
+        if let Some(xmp) = extensions.khr_xmp_json_ld.as_mut() {
+            // TODO: Validation to make sure the input file isn't incorrect.
+            xmp.packets = cloned.packets;
+        } else {
+            extensions.khr_xmp_json_ld = Some(KhrXmpJsonLd {
+                packets: cloned.packets
+            })
+        }
+    } else {
+        gltf.extensions = Some(Extension {
+            khr_xmp: None,
+            khr_xmp_json_ld: Some(KhrXmpJsonLd {
+                packets: cloned.packets,
+            }),
+            other_extensions: Default::default(),
+        })
+    }
+
+    if let Some(extensions_used) = gltf.extensions_used.as_mut() {
+        if !extensions_used.contains(&"KHR_xmp_json_ld".to_string()) {
+            extensions_used.push("KHR_xmp_json_ld".to_string())
+        }
+    } else {
+        gltf.extensions_used = Some(vec!["KHR_xmp_json_ld".to_string()])
+    }
+
+    let mut manager = KhrXmpJsonLdManager::new(gltf);
+
+    log_if_verbose(is_verbose, "Clearing all applied packets.");
+    manager.clear_applied_packets();
+    log_if_verbose(is_verbose, "Setting new packets.");
+    manager.set_applied_packets(apply_to);
+
+    log_if_verbose(
+        is_verbose,
+        format!(
+            "Opening & writing to output file at path {}",
+            output_path.display()
+        )
+            .as_str(),
+    );
+    let output_writer = open_writer(output_path)?;
+    write_gltf(output_writer, manager.get_gltf())?;
+
+    Ok(())
+}
+
+//noinspection DuplicatedCode
+fn update_glb(
+    input_path: &Path,
+    output_path: &Path,
+    metadata: &KhrXmpJsonLd,
+    apply_to: Vec<PacketApplied>,
+    is_verbose: bool,
+) -> Result<(), Box<dyn Error>> {
+    log_if_verbose(
+        is_verbose,
+        format!(
+            "Opening & reading input file at path {}",
+            input_path.display()
+        )
+            .as_str(),
+    );
+    let input_reader = open_reader(input_path)?;
+    let glb = match Glb::from_reader(input_reader) {
+        Ok(g) => g,
+        Err(e) => return Err(e.into()),
+    };
+
+    let mut gltf: Gltf = serde_json::from_slice(glb.json.as_ref())?;
+
+    let cloned = metadata.clone();
+
+    if let Some(extensions) = gltf.extensions.as_mut() {
+        if let Some(xmp) = extensions.khr_xmp_json_ld.as_mut() {
+            // TODO: Validation to make sure the input file isn't incorrect.
+            xmp.packets = cloned.packets;
+        } else {
+            extensions.khr_xmp_json_ld = Some(KhrXmpJsonLd {
+                packets: cloned.packets
+            })
+        }
+    } else {
+        gltf.extensions = Some(Extension {
+            khr_xmp: None,
+            khr_xmp_json_ld: Some(KhrXmpJsonLd {
+                packets: cloned.packets,
+            }),
+            other_extensions: Default::default(),
+        })
+    }
+
+    if let Some(extensions_used) = gltf.extensions_used.as_mut() {
+        if !extensions_used.contains(&"KHR_xmp_json_ld".to_string()) {
+            extensions_used.push("KHR_xmp_json_ld".to_string())
+        }
+    } else {
+        gltf.extensions_used = Some(vec!["KHR_xmp_json_ld".to_string()])
+    }
+
+    let mut manager = KhrXmpJsonLdManager::new(gltf);
+
+    log_if_verbose(is_verbose, "Clearing all applied packets.");
+    manager.clear_applied_packets();
+    log_if_verbose(is_verbose, "Setting new packets.");
+    manager.set_applied_packets(apply_to);
+
+    let json_data = serde_json::to_string_pretty(manager.get_gltf())?;
+    let json_offset = align_to_multiple_of_four(glb.json.len() as u32);
+
+    let new_bin = glb.bin.unwrap_or_default().clone();
+    let new_glb = gltf::binary::Glb {
+        header: gltf::binary::Header {
+            magic: b"glTF".clone(),
+            version: 2,
+            length: json_offset + new_bin.len() as u32,
+        },
+        json: Cow::Owned(json_data.into_bytes()),
+        bin: Some(new_bin),
+    };
+
+    let writer = std::fs::File::create(output_path)?;
+    new_glb.to_writer(writer)?;
+
+    Ok(())
+}
+
+// TODO: Probably can find a better way to handle updating using traits. I need to clean up this duplicate code.
+//noinspection DuplicatedCode
+fn update_gltf_legacy(
     input_path: &Path,
     output_path: &Path,
     metadata: &KhrXmp,
@@ -150,6 +298,11 @@ fn update_gltf(
             // TODO: Validation to make sure the input file isn't incorrect.
             xmp.context = cloned.context;
             xmp.packets = cloned.packets;
+        } else {
+            extensions.khr_xmp = Some(KhrXmp {
+                context: cloned.context,
+                packets: cloned.packets,
+            })
         }
     } else {
         gltf.extensions = Some(Extension {
@@ -192,7 +345,7 @@ fn update_gltf(
 }
 
 //noinspection DuplicatedCode
-fn update_glb(
+fn update_glb_legacy(
     input_path: &Path,
     output_path: &Path,
     metadata: &KhrXmp,
@@ -222,6 +375,11 @@ fn update_glb(
             // TODO: Validation to make sure the input file isn't incorrect.
             xmp.context = cloned.context;
             xmp.packets = cloned.packets;
+        } else {
+            extensions.khr_xmp = Some(KhrXmp {
+                context: cloned.context,
+                packets: cloned.packets,
+            })
         }
     } else {
         gltf.extensions = Some(Extension {
@@ -327,6 +485,7 @@ fn main() {
                 .value_name("JSON_FILE")
                 .help("Use raw JSON input file mode")
                 // .required_unless("xmp")
+                .required_unless("migrate")
                 .required_unless("list"), // .conflicts_with("xmp"),
         )
         // .arg(
@@ -370,6 +529,13 @@ fn main() {
 
     // Check Legacy Mode
     let is_legacy = matches.is_present("legacy");
+
+    // Check migration mode
+    let migration = matches.is_present("migrate");
+
+    if (migration) {
+        clean_exit(ExitCode::Error, Some("Migration mode not fully implemented."))
+    }
 
     // TODO: Fully implement apply_to logic.
     let apply_to = vec![PacketApplied::Asset(0)];
@@ -442,28 +608,56 @@ fn main() {
     };
     match mode {
         MetadataInputMode::JSON(p) => {
-            let metadata_path = Path::new(p.as_str());
-            let metadata = match open_reader(metadata_path) {
-                Ok(file) => read_json(file),
-                Err(e) => Err(e),
+            // TODO: Need to move this to the managers.
+            if is_legacy {
+                // KHR_xmp
+                let metadata_path = Path::new(p.as_str());
+                let metadata = match open_reader(metadata_path) {
+                    Ok(file) => read_legacy_json(file),
+                    Err(e) => Err(e),
+                };
+                match metadata {
+                    Ok(m) => match input_type {
+                        InputType::Gltf => {
+                            match update_gltf_legacy(input_path, output_path, &m, apply_to, verbose) {
+                                Err(e) => return exit_on_error(e),
+                                _ => (),
+                            }
+                        }
+                        InputType::Glb => {
+                            match update_glb_legacy(input_path, output_path, &m, apply_to, verbose) {
+                                Err(e) => return exit_on_error(e),
+                                _ => (),
+                            }
+                        }
+                    },
+                    Err(e) => return exit_on_error(e),
+                }
+            } else {
+                // KHR_xmp_json_ld
+                let metadata_path = Path::new(p.as_str());
+                let metadata = match open_reader(metadata_path) {
+                    Ok(file) => read_json(file),
+                    Err(e) => Err(e),
+                };
+                match metadata {
+                    Ok(m) => match input_type {
+                        InputType::Gltf => {
+                            match update_gltf(input_path, output_path, &m, apply_to, verbose) {
+                                Err(e) => return exit_on_error(e),
+                                _ => (),
+                            }
+                        }
+                        InputType::Glb => {
+                            match update_glb(input_path, output_path, &m, apply_to, verbose) {
+                                Err(e) => return exit_on_error(e),
+                                _ => (),
+                            }
+                        }
+                    },
+                    Err(e) => return exit_on_error(e),
+                }
             };
-            match metadata {
-                Ok(m) => match input_type {
-                    InputType::Gltf => {
-                        match update_gltf(input_path, output_path, &m, apply_to, verbose) {
-                            Err(e) => return exit_on_error(e),
-                            _ => (),
-                        }
-                    }
-                    InputType::Glb => {
-                        match update_glb(input_path, output_path, &m, apply_to, verbose) {
-                            Err(e) => return exit_on_error(e),
-                            _ => (),
-                        }
-                    }
-                },
-                Err(e) => return exit_on_error(e),
-            }
         }
         MetadataInputMode::XMP(_path) => {
             // TODO: Add XMP file input support.

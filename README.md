@@ -49,6 +49,7 @@ cargo run -- -i ./glTF-Sample-Models/2.0/DamagedHelmet/glTF-Binary/DamagedHelmet
 
 This section is formatted as "PRIORITY: Milestone" to give an idea of how important the milestone is to final 1.0.0 release.
 
+ - CRITICAL: Migration flag to migrate from *KHR_xmp* to *KHR_xmp_json_ld*. 
  - CRITICAL: Pre-built binaries for each platform.
  - HIGH: Input via command-line parameters.
  - MEDIUM: Implement basic writing from XMP files to both `.glTF` and `.glb` files.
@@ -72,3 +73,8 @@ This section is formatted as "PRIORITY: Milestone" to give an idea of how import
 ## 1.0.0-alpha02
 
  - Full support for `.glb` files. Added example.
+
+## 1.0.0-alpha03
+
+ - Implemented support for the new *KHR_xmp_json_ld* extension replacing *KHR_xmp*.
+

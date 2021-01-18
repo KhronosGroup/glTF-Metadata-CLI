@@ -8,6 +8,7 @@ use std::error::Error;
 use std::fs::File;
 use std::io::{BufReader, BufWriter, Read, Write};
 use std::path::Path;
+use crate::json_models::khr_xmp_json_ld::KhrXmpJsonLd;
 
 pub fn open_reader(path: &Path) -> Result<BufReader<File>, Box<dyn Error>> {
     let file = File::open(path)?;
@@ -15,7 +16,12 @@ pub fn open_reader(path: &Path) -> Result<BufReader<File>, Box<dyn Error>> {
     Ok(reader)
 }
 
-pub fn read_json<T: Read>(reader: T) -> Result<KhrXmp, Box<dyn Error>> {
+pub fn read_legacy_json<T: Read>(reader: T) -> Result<KhrXmp, Box<dyn Error>> {
+    let json = serde_json::from_reader(reader)?;
+    Ok(json)
+}
+
+pub fn read_json<T: Read>(reader: T) -> Result<KhrXmpJsonLd, Box<dyn Error>> {
     let json = serde_json::from_reader(reader)?;
     Ok(json)
 }
@@ -53,7 +59,7 @@ mod test {
         let reader = open_reader(path);
         assert!(reader.is_ok());
 
-        let json = read_json(reader.unwrap());
+        let json = read_khr_xmp_json(reader.unwrap());
         assert!(json.is_ok());
 
         let expected = read_to_string(path).unwrap();

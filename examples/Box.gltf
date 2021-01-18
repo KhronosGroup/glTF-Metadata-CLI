@@ -12,33 +12,34 @@
     "generator": "COLLADA2GLTF"
   },
   "extensionsUsed": [
-    "KHR_xmp"
+    "KHR_xmp",
+    "KHR_xmp_json_ld"
   ],
   "accessors": [
     {
-      "byteOffset": 0,
-      "count": 36,
-      "max": [
-        23
-      ],
       "min": [
         0
       ],
       "type": "SCALAR",
       "bufferView": 0,
-      "componentType": 5123
+      "max": [
+        23
+      ],
+      "componentType": 5123,
+      "byteOffset": 0,
+      "count": 36
     },
     {
-      "byteOffset": 0,
       "componentType": 5126,
+      "byteOffset": 0,
+      "count": 24,
+      "bufferView": 1,
       "max": [
         1.0,
         1.0,
         1.0
       ],
       "type": "VEC3",
-      "count": 24,
-      "bufferView": 1,
       "min": [
         -1.0,
         -1.0,
@@ -46,20 +47,20 @@
       ]
     },
     {
-      "type": "VEC3",
-      "count": 24,
-      "max": [
-        0.5,
-        0.5,
-        0.5
-      ],
       "componentType": 5126,
       "byteOffset": 288,
+      "type": "VEC3",
       "min": [
         -0.5,
         -0.5,
         -0.5
       ],
+      "max": [
+        0.5,
+        0.5,
+        0.5
+      ],
+      "count": 24,
       "bufferView": 1
     }
   ],
@@ -71,17 +72,17 @@
   ],
   "bufferViews": [
     {
-      "byteOffset": 576,
       "target": 34963,
-      "buffer": 0,
-      "byteLength": 72
+      "byteLength": 72,
+      "byteOffset": 576,
+      "buffer": 0
     },
     {
-      "buffer": 0,
-      "byteLength": 576,
       "byteOffset": 0,
       "byteStride": 12,
-      "target": 34962
+      "target": 34962,
+      "buffer": 0,
+      "byteLength": 576
     }
   ],
   "materials": [
@@ -100,7 +101,6 @@
   ],
   "meshes": [
     {
-      "name": "Mesh",
       "primitives": [
         {
           "attributes": {
@@ -111,14 +111,12 @@
           "material": 0,
           "mode": 4
         }
-      ]
+      ],
+      "name": "Mesh"
     }
   ],
   "nodes": [
     {
-      "children": [
-        1
-      ],
       "matrix": [
         1.0,
         0.0,
@@ -136,6 +134,9 @@
         0.0,
         0.0,
         1.0
+      ],
+      "children": [
+        1
       ]
     },
     {
