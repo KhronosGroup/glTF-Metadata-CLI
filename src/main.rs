@@ -20,6 +20,8 @@ use std::error::Error;
 use std::ffi::OsStr;
 use std::path::Path;
 use std::process::exit;
+use crate::json_models::khr_xmp_json_ld::KhrXmpJsonLd;
+use crate::managers::khr_xmp_json_ld_manager::KhrXmpJsonLdManager;
 
 mod io_helpers;
 mod json_models;
@@ -43,7 +45,7 @@ enum MetadataInputMode {
     Manual,
 }
 
-enum PacketApplied {
+pub enum PacketApplied {
     Asset(u64),
     Animations(u64),
     Images(u64),
@@ -72,7 +74,15 @@ fn validate_file_as_extension(path: &Path, extension: &str) -> bool {
     }
 }
 
-fn list_gltf_metadata(path: &Path) -> Result<(), String> {
+fn get_manager(g: Gltf, is_legacy: bool) -> Box<dyn Manager> {
+    if is_legacy {
+        Box::new(KhrXmpManager::new(g))
+    } else {
+        Box::new(KhrXmpJsonLdManager::new(g))
+    }
+}
+
+fn list_gltf_metadata(path: &Path, is_legacy: bool) -> Result<(), String> {
     let reader = open_reader(path);
     let gltf = match reader {
         Ok(r) => read_gltf(r),
@@ -81,14 +91,14 @@ fn list_gltf_metadata(path: &Path) -> Result<(), String> {
 
     match gltf {
         Ok(g) => {
-            let manager = KhrXmpManager::new(g);
+            let manager = get_manager(g, is_legacy);
             manager.print_gltf()
         }
         Err(e) => Err(e.to_string()),
     }
 }
 
-fn list_glb_metadata(path: &Path) -> Result<(), String> {
+fn list_glb_metadata(path: &Path, is_legacy: bool) -> Result<(), String> {
     let reader = match open_reader(path) {
         Ok(r) => r,
         Err(e) => return Err(e.to_string()),
@@ -101,7 +111,7 @@ fn list_glb_metadata(path: &Path) -> Result<(), String> {
 
     match serde_json::from_slice(glb.json.as_ref()) {
         Ok(gltf) => {
-            let manager = KhrXmpManager::new(gltf);
+            let manager = get_manager(gltf, is_legacy);
             manager.print_gltf()
         }
         Err(e) => Err(e.to_string()),
@@ -315,7 +325,7 @@ fn main() {
                 .short("j")
                 .long("json")
                 .value_name("JSON_FILE")
-                .help("Use JSON input file mode")
+                .help("Use raw JSON input file mode")
                 // .required_unless("xmp")
                 .required_unless("list"), // .conflicts_with("xmp"),
         )
@@ -358,6 +368,9 @@ fn main() {
     // Check verbosity
     let verbose = matches.is_present("verbose");
 
+    // Check Legacy Mode
+    let is_legacy = matches.is_present("legacy");
+
     // TODO: Fully implement apply_to logic.
     let apply_to = vec![PacketApplied::Asset(0)];
 
@@ -392,8 +405,8 @@ fn main() {
 
     if matches.is_present("list") {
         let result = match input_type {
-            InputType::Gltf => list_gltf_metadata(input_path),
-            InputType::Glb => list_glb_metadata(input_path),
+            InputType::Gltf => list_gltf_metadata(input_path, is_legacy),
+            InputType::Glb => list_glb_metadata(input_path, is_legacy),
         };
 
         return match result {

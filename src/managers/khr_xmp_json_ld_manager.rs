@@ -1,16 +1,16 @@
 use crate::json_models::gltf::Gltf;
-use crate::{PacketApplied, NO_METADATA_FOUND_ERROR};
-use crate::json_models::extension::{PacketExtension, ExtensionsOnly};
 use crate::managers::Manager;
-use crate::json_models::khr_xmp::KhrXmpPacket;
+use crate::{PacketApplied, NO_METADATA_FOUND_ERROR};
+use crate::json_models::extension::{ExtensionsOnly, PacketExtension};
+use crate::json_models::khr_xmp_json_ld::KhrXmpJsonLdPacket;
 
-pub struct KhrXmpManager {
+pub struct KhrXmpJsonLdManager {
     gltf: Gltf,
 }
 
-impl Manager for KhrXmpManager {
-    fn new(g: Gltf) -> KhrXmpManager {
-        KhrXmpManager { gltf: g }
+impl Manager for KhrXmpJsonLdManager {
+    fn new(g: Gltf) -> Self {
+        KhrXmpJsonLdManager { gltf: g }
     }
 
     fn get_gltf(&self) -> &Gltf {
@@ -19,7 +19,8 @@ impl Manager for KhrXmpManager {
 
     fn print_gltf(&self) -> Result<(), String> {
         match &self.gltf.extensions {
-            Some(extension) => match &extension.khr_xmp {
+            Some(extension) => match &extension.khr_xmp_json_ld {
+                // TODO: This is currently duplicated in both managers. It can probably be lifted out.
                 Some(xmp) => {
                     let mut applied_packets: Vec<PacketApplied> = vec![];
                     let empty_vec: Vec<ExtensionsOnly> = Vec::new();
@@ -72,7 +73,7 @@ impl Manager for KhrXmpManager {
                         }
                     }
 
-                    println!("KHR_xmp extension value:");
+                    println!("KHR_xmp_json_ld extension value:");
                     println!("{}", serde_json::to_string_pretty(&xmp).unwrap());
 
                     // TODO: I want to also include the name, if available, to make it easier to
@@ -101,13 +102,13 @@ impl Manager for KhrXmpManager {
     fn clear_applied_packets(&mut self) {
         // There is maybe a more elegant way to do this, but brute force it for now.
         if let Some(mut e) = self.gltf.asset.extensions.as_mut() {
-            e.khr_xmp = None;
+            e.khr_xmp_json_ld = None;
         }
 
         if *&self.gltf.animations.is_some() {
             for animation in self.gltf.animations.as_mut().unwrap() {
                 if let Some(mut e) = animation.extensions.as_mut() {
-                    e.khr_xmp = None;
+                    e.khr_xmp_json_ld = None;
                 }
             }
         }
@@ -115,7 +116,7 @@ impl Manager for KhrXmpManager {
         if *&self.gltf.images.is_some() {
             for image in self.gltf.images.as_mut().unwrap() {
                 if let Some(mut e) = image.extensions.as_mut() {
-                    e.khr_xmp = None;
+                    e.khr_xmp_json_ld = None;
                 }
             }
         }
@@ -123,7 +124,7 @@ impl Manager for KhrXmpManager {
         if *&self.gltf.materials.is_some() {
             for material in self.gltf.materials.as_mut().unwrap() {
                 if let Some(mut e) = material.extensions.as_mut() {
-                    e.khr_xmp = None;
+                    e.khr_xmp_json_ld = None;
                 }
             }
         }
@@ -131,7 +132,7 @@ impl Manager for KhrXmpManager {
         if *&self.gltf.meshes.is_some() {
             for mesh in self.gltf.meshes.as_mut().unwrap() {
                 if let Some(mut e) = mesh.extensions.as_mut() {
-                    e.khr_xmp = None;
+                    e.khr_xmp_json_ld = None;
                 }
             }
         }
@@ -139,7 +140,7 @@ impl Manager for KhrXmpManager {
         if *&self.gltf.nodes.is_some() {
             for node in self.gltf.nodes.as_mut().unwrap() {
                 if let Some(mut e) = node.extensions.as_mut() {
-                    e.khr_xmp = None;
+                    e.khr_xmp_json_ld = None;
                 }
             }
         }
@@ -147,24 +148,23 @@ impl Manager for KhrXmpManager {
         if *&self.gltf.scenes.is_some() {
             for scene in self.gltf.scenes.as_mut().unwrap() {
                 if let Some(mut e) = scene.extensions.as_mut() {
-                    e.khr_xmp = None;
+                    e.khr_xmp_json_ld = None;
                 }
             }
         }
     }
 
-    //noinspection DuplicatedCode There's a lot of repeat code here because dealing with the lifetimes of the serde object is difficult due to our use of flatten.
     fn set_applied_packets(&mut self, apply_to: Vec<PacketApplied>) {
         // Right now we just apply to _all_ of a category.
         for packet in apply_to {
             match packet {
                 PacketApplied::Asset(i) => {
                     if let Some(e) = self.gltf.asset.extensions.as_mut() {
-                        e.khr_xmp = Some(KhrXmpPacket { packet: Some(i) });
+                        e.khr_xmp_json_ld = Some(KhrXmpJsonLdPacket { packet: Some(i) });
                     } else {
                         self.gltf.asset.extensions = Some(PacketExtension {
-                            khr_xmp: Some(KhrXmpPacket { packet: Some(i) }),
-                            khr_xmp_json_ld: None,
+                            khr_xmp: None,
+                            khr_xmp_json_ld: Some(KhrXmpJsonLdPacket { packet: Some(i) }),
                             other_extensions: Default::default(),
                         });
                     };
@@ -172,11 +172,11 @@ impl Manager for KhrXmpManager {
                 PacketApplied::Animations(i) => {
                     for animation in self.gltf.animations.as_mut().unwrap() {
                         if let Some(e) = animation.extensions.as_mut() {
-                            e.khr_xmp = Some(KhrXmpPacket { packet: Some(i) });
+                            e.khr_xmp_json_ld = Some(KhrXmpJsonLdPacket { packet: Some(i) });
                         } else {
                             animation.extensions = Some(PacketExtension {
-                                khr_xmp: Some(KhrXmpPacket { packet: Some(i) }),
-                                khr_xmp_json_ld: None,
+                                khr_xmp: None,
+                                khr_xmp_json_ld: Some(KhrXmpJsonLdPacket { packet: Some(i) }),
                                 other_extensions: Default::default(),
                             });
                         };
@@ -185,11 +185,11 @@ impl Manager for KhrXmpManager {
                 PacketApplied::Images(i) => {
                     for image in self.gltf.images.as_mut().unwrap() {
                         if let Some(e) = image.extensions.as_mut() {
-                            e.khr_xmp = Some(KhrXmpPacket { packet: Some(i) });
+                            e.khr_xmp_json_ld = Some(KhrXmpJsonLdPacket { packet: Some(i) });
                         } else {
                             image.extensions = Some(PacketExtension {
-                                khr_xmp: Some(KhrXmpPacket { packet: Some(i) }),
-                                khr_xmp_json_ld: None,
+                                khr_xmp: None,
+                                khr_xmp_json_ld: Some(KhrXmpJsonLdPacket { packet: Some(i) }),
                                 other_extensions: Default::default(),
                             });
                         };
@@ -198,11 +198,11 @@ impl Manager for KhrXmpManager {
                 PacketApplied::Materials(i) => {
                     for material in self.gltf.materials.as_mut().unwrap() {
                         if let Some(e) = material.extensions.as_mut() {
-                            e.khr_xmp = Some(KhrXmpPacket { packet: Some(i) });
+                            e.khr_xmp_json_ld = Some(KhrXmpJsonLdPacket { packet: Some(i) });
                         } else {
                             material.extensions = Some(PacketExtension {
-                                khr_xmp: Some(KhrXmpPacket { packet: Some(i) }),
-                                khr_xmp_json_ld: None,
+                                khr_xmp: None,
+                                khr_xmp_json_ld: Some(KhrXmpJsonLdPacket { packet: Some(i) }),
                                 other_extensions: Default::default(),
                             });
                         };
@@ -211,11 +211,11 @@ impl Manager for KhrXmpManager {
                 PacketApplied::Meshes(i) => {
                     for mesh in self.gltf.meshes.as_mut().unwrap() {
                         if let Some(e) = mesh.extensions.as_mut() {
-                            e.khr_xmp = Some(KhrXmpPacket { packet: Some(i) });
+                            e.khr_xmp_json_ld = Some(KhrXmpJsonLdPacket { packet: Some(i) });
                         } else {
                             mesh.extensions = Some(PacketExtension {
-                                khr_xmp: Some(KhrXmpPacket { packet: Some(i) }),
-                                khr_xmp_json_ld: None,
+                                khr_xmp: None,
+                                khr_xmp_json_ld: Some(KhrXmpJsonLdPacket { packet: Some(i) }),
                                 other_extensions: Default::default(),
                             });
                         };
@@ -224,11 +224,11 @@ impl Manager for KhrXmpManager {
                 PacketApplied::Nodes(i) => {
                     for node in self.gltf.nodes.as_mut().unwrap() {
                         if let Some(e) = node.extensions.as_mut() {
-                            e.khr_xmp = Some(KhrXmpPacket { packet: Some(i) });
+                            e.khr_xmp_json_ld = Some(KhrXmpJsonLdPacket { packet: Some(i) });
                         } else {
                             node.extensions = Some(PacketExtension {
-                                khr_xmp: Some(KhrXmpPacket { packet: Some(i) }),
-                                khr_xmp_json_ld: None,
+                                khr_xmp: None,
+                                khr_xmp_json_ld: Some(KhrXmpJsonLdPacket { packet: Some(i) }),
                                 other_extensions: Default::default(),
                             });
                         };
@@ -237,11 +237,11 @@ impl Manager for KhrXmpManager {
                 PacketApplied::Scenes(i) => {
                     for scene in self.gltf.scenes.as_mut().unwrap() {
                         if let Some(e) = scene.extensions.as_mut() {
-                            e.khr_xmp = Some(KhrXmpPacket { packet: Some(i) });
+                            e.khr_xmp_json_ld = Some(KhrXmpJsonLdPacket { packet: Some(i) });
                         } else {
                             scene.extensions = Some(PacketExtension {
-                                khr_xmp: Some(KhrXmpPacket { packet: Some(i) }),
-                                khr_xmp_json_ld: None,
+                                khr_xmp: None,
+                                khr_xmp_json_ld: Some(KhrXmpJsonLdPacket { packet: Some(i) }),
                                 other_extensions: Default::default(),
                             });
                         };
@@ -255,7 +255,7 @@ impl Manager for KhrXmpManager {
 fn get_packet_value(extension: &Option<PacketExtension>) -> Option<u64> {
     match extension {
         None => None,
-        Some(ex) => match &ex.khr_xmp {
+        Some(ex) => match &ex.khr_xmp_json_ld {
             None => None,
             Some(xmp) => match xmp.packet {
                 None => None,

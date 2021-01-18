@@ -6,9 +6,10 @@ use crate::json_models::gltf::Gltf;
 use crate::PacketApplied;
 
 pub mod khr_xmp_manager;
+pub mod khr_xmp_json_ld_manager;
 
 pub trait Manager {
-    fn new(g: Gltf) -> Self;
+    fn new(g: Gltf) -> Self where Self: Sized;
 
     fn get_gltf(&self) -> &Gltf;
 

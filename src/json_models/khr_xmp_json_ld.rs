@@ -17,6 +17,9 @@ pub struct KhrXmpJsonLdPacketList {
     #[serde(rename = "@context")]
     pub context: Value,
 
+    #[serde(rename = "@id")]
+    pub id: Value,
+
     #[serde(flatten)]
     pub metadata: HashMap<String, Value>
 }
