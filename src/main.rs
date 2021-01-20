@@ -7,20 +7,25 @@ extern crate gltf;
 extern crate serde;
 extern crate serde_json;
 
-use crate::io_helpers::{open_reader, open_writer, read_gltf, read_json, write_gltf};
-use crate::json_models::extension::{Extension, PacketExtension};
+use crate::io_helpers::{open_reader, open_writer, read_gltf, write_gltf, read_legacy_json, read_json};
+use crate::json_models::extension::{Extension};
 use crate::json_models::gltf::Gltf;
-use crate::json_models::khr_xmp::{KhrXmp, KhrXmpPacket};
+use crate::json_models::khr_xmp::KhrXmp;
+use crate::managers::Manager;
+use crate::managers::khr_xmp_manager::KhrXmpManager;
 use clap::{App, Arg};
 use gltf::Glb;
-use std::borrow::{Borrow, Cow};
+use std::borrow::Cow;
 use std::error::Error;
 use std::ffi::OsStr;
 use std::path::Path;
 use std::process::exit;
+use crate::json_models::khr_xmp_json_ld::KhrXmpJsonLd;
+use crate::managers::khr_xmp_json_ld_manager::KhrXmpJsonLdManager;
 
 mod io_helpers;
 mod json_models;
+mod managers;
 
 const NAME: &str = env!("CARGO_PKG_NAME");
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -40,7 +45,7 @@ enum MetadataInputMode {
     Manual,
 }
 
-enum PacketApplied {
+pub enum PacketApplied {
     Asset(u64),
     Animations(u64),
     Images(u64),
@@ -58,7 +63,6 @@ enum ExitCode {
 }
 
 // TODO: Further reduce the number of unwraps to increase safety.
-// TODO: Move a lot of this code into separate modules.
 // TODO: Need unit tests. A lot of unit tests.
 
 /// Performs simple extension validation on a input path.
@@ -69,7 +73,15 @@ fn validate_file_as_extension(path: &Path, extension: &str) -> bool {
     }
 }
 
-fn list_gltf_metadata(path: &Path) -> Result<(), String> {
+fn get_manager(g: Gltf, is_legacy: bool) -> Box<dyn Manager> {
+    if is_legacy {
+        Box::new(KhrXmpManager::new(g))
+    } else {
+        Box::new(KhrXmpJsonLdManager::new(g))
+    }
+}
+
+fn list_gltf_metadata(path: &Path, is_legacy: bool) -> Result<(), String> {
     let reader = open_reader(path);
     let gltf = match reader {
         Ok(r) => read_gltf(r),
@@ -77,105 +89,15 @@ fn list_gltf_metadata(path: &Path) -> Result<(), String> {
     };
 
     match gltf {
-        Ok(g) => print_gltf(g),
+        Ok(g) => {
+            let manager = get_manager(g, is_legacy);
+            manager.print_gltf()
+        }
         Err(e) => Err(e.to_string()),
     }
 }
 
-fn get_packet_value(extension: Option<PacketExtension>) -> Option<u64> {
-    match extension {
-        None => None,
-        Some(ex) => match ex.khr_xmp {
-            None => None,
-            Some(xmp) => match xmp.packet {
-                None => None,
-                Some(index) => Some(index),
-            },
-        },
-    }
-}
-
-fn print_gltf(gltf: Gltf) -> Result<(), String> {
-    match gltf.extensions {
-        Some(extension) => match extension.khr_xmp {
-            Some(xmp) => {
-                let mut applied_packets: Vec<PacketApplied> = vec![];
-
-                match get_packet_value(gltf.asset.extensions) {
-                    Some(index) => applied_packets.push(PacketApplied::Asset(index)),
-                    None => (),
-                }
-
-                // TODO: Need to clean this up. Lots of repeat code here.
-                for animation in gltf.animations.unwrap_or_default() {
-                    match get_packet_value(animation.extensions) {
-                        Some(index) => applied_packets.push(PacketApplied::Animations(index)),
-                        None => (),
-                    }
-                }
-
-                for image in gltf.images.unwrap_or_default() {
-                    match get_packet_value(image.extensions) {
-                        Some(index) => applied_packets.push(PacketApplied::Images(index)),
-                        None => (),
-                    }
-                }
-
-                for material in gltf.materials.unwrap_or_default() {
-                    match get_packet_value(material.extensions) {
-                        Some(index) => applied_packets.push(PacketApplied::Materials(index)),
-                        None => (),
-                    }
-                }
-
-                for mesh in gltf.meshes.unwrap_or_default() {
-                    match get_packet_value(mesh.extensions) {
-                        Some(index) => applied_packets.push(PacketApplied::Meshes(index)),
-                        None => (),
-                    }
-                }
-
-                for node in gltf.nodes.unwrap_or_default() {
-                    match get_packet_value(node.extensions) {
-                        Some(index) => applied_packets.push(PacketApplied::Nodes(index)),
-                        None => (),
-                    }
-                }
-
-                for scene in gltf.scenes.unwrap_or_default() {
-                    match get_packet_value(scene.extensions) {
-                        Some(index) => applied_packets.push(PacketApplied::Scenes(index)),
-                        None => (),
-                    }
-                }
-
-                println!("KHR_xmp extension value:");
-                println!("{}", serde_json::to_string_pretty(&xmp).unwrap());
-
-                // TODO: I want to also include the name, if available, to make it easier to
-                //   figure out which packet corresponds exactly to which image/mesh/etc.
-                println!("\nPackets applied at:");
-                for packet in applied_packets {
-                    match packet {
-                        PacketApplied::Asset(index) => println!("\tAssets: {}", index),
-                        PacketApplied::Animations(index) => println!("\tAnimations: {}", index),
-                        PacketApplied::Images(index) => println!("\tImages: {}", index),
-                        PacketApplied::Materials(index) => println!("\tMaterials: {}", index),
-                        PacketApplied::Meshes(index) => println!("\tMeshes: {}", index),
-                        PacketApplied::Nodes(index) => println!("\tNodes: {}", index),
-                        PacketApplied::Scenes(index) => println!("\tScenes: {}", index),
-                    }
-                }
-
-                Ok(())
-            }
-            None => Err(NO_METADATA_FOUND_ERROR.to_string()),
-        },
-        None => Err(NO_METADATA_FOUND_ERROR.to_string()),
-    }
-}
-
-fn list_glb_metadata(path: &Path) -> Result<(), String> {
+fn list_glb_metadata(path: &Path, is_legacy: bool) -> Result<(), String> {
     let reader = match open_reader(path) {
         Ok(r) => r,
         Err(e) => return Err(e.to_string()),
@@ -187,7 +109,10 @@ fn list_glb_metadata(path: &Path) -> Result<(), String> {
     };
 
     match serde_json::from_slice(glb.json.as_ref()) {
-        Ok(gltf) => print_gltf(gltf),
+        Ok(gltf) => {
+            let manager = get_manager(gltf, is_legacy);
+            manager.print_gltf()
+        }
         Err(e) => Err(e.to_string()),
     }
 }
@@ -198,155 +123,158 @@ fn log_if_verbose(verbose: bool, message: &str) {
     }
 }
 
-fn clear_applied_packets(gltf: &mut Gltf) {
-    // There is maybe a more elegant way to do this, but brute force it for now.
-    if let Some(mut e) = gltf.asset.extensions.as_mut() {
-        e.khr_xmp = None;
+// TODO: These update functions need to be moved to the managers.
+//noinspection DuplicatedCode
+fn update_gltf(
+    input_path: &Path,
+    output_path: &Path,
+    metadata: &KhrXmpJsonLd,
+    apply_to: Vec<PacketApplied>,
+    is_verbose: bool,
+) -> Result<(), Box<dyn Error>> {
+    log_if_verbose(
+        is_verbose,
+        format!(
+            "Opening & reading input file at path {}",
+            input_path.display()
+        )
+            .as_str(),
+    );
+    let input_reader = open_reader(input_path)?;
+    let mut gltf = read_gltf(input_reader)?;
+
+    let cloned = metadata.clone();
+    if let Some(extensions) = gltf.extensions.as_mut() {
+        if let Some(xmp) = extensions.khr_xmp_json_ld.as_mut() {
+            // TODO: Validation to make sure the input file isn't incorrect.
+            xmp.packets = cloned.packets;
+        } else {
+            extensions.khr_xmp_json_ld = Some(KhrXmpJsonLd {
+                packets: cloned.packets
+            })
+        }
+    } else {
+        gltf.extensions = Some(Extension {
+            khr_xmp: None,
+            khr_xmp_json_ld: Some(KhrXmpJsonLd {
+                packets: cloned.packets,
+            }),
+            other_extensions: Default::default(),
+        })
     }
 
-    if gltf.animations.is_some() {
-        for animation in gltf.animations.as_mut().unwrap() {
-            if let Some(mut e) = animation.extensions.as_mut() {
-                e.khr_xmp = None;
-            }
+    if let Some(extensions_used) = gltf.extensions_used.as_mut() {
+        if !extensions_used.contains(&"KHR_xmp_json_ld".to_string()) {
+            extensions_used.push("KHR_xmp_json_ld".to_string())
         }
+    } else {
+        gltf.extensions_used = Some(vec!["KHR_xmp_json_ld".to_string()])
     }
 
-    if gltf.images.is_some() {
-        for image in gltf.images.as_mut().unwrap() {
-            if let Some(mut e) = image.extensions.as_mut() {
-                e.khr_xmp = None;
-            }
-        }
-    }
+    let mut manager = KhrXmpJsonLdManager::new(gltf);
 
-    if gltf.materials.is_some() {
-        for material in gltf.materials.as_mut().unwrap() {
-            if let Some(mut e) = material.extensions.as_mut() {
-                e.khr_xmp = None;
-            }
-        }
-    }
+    log_if_verbose(is_verbose, "Clearing all applied packets.");
+    manager.clear_applied_packets();
+    log_if_verbose(is_verbose, "Setting new packets.");
+    manager.set_applied_packets(apply_to);
 
-    if gltf.meshes.is_some() {
-        for mesh in gltf.meshes.as_mut().unwrap() {
-            if let Some(mut e) = mesh.extensions.as_mut() {
-                e.khr_xmp = None;
-            }
-        }
-    }
+    log_if_verbose(
+        is_verbose,
+        format!(
+            "Opening & writing to output file at path {}",
+            output_path.display()
+        )
+            .as_str(),
+    );
+    let output_writer = open_writer(output_path)?;
+    write_gltf(output_writer, manager.get_gltf())?;
 
-    if gltf.nodes.is_some() {
-        for node in gltf.nodes.as_mut().unwrap() {
-            if let Some(mut e) = node.extensions.as_mut() {
-                e.khr_xmp = None;
-            }
-        }
-    }
-
-    if gltf.scenes.is_some() {
-        for scene in gltf.scenes.as_mut().unwrap() {
-            if let Some(mut e) = scene.extensions.as_mut() {
-                e.khr_xmp = None;
-            }
-        }
-    }
+    Ok(())
 }
 
-//noinspection DuplicatedCode There's a lot of repeat code here because dealing with the lifetimes of the serde object is difficult due to our use of flatten.
-fn set_applied_packets(gltf: &mut Gltf, apply_to: Vec<PacketApplied>) {
-    // Right now we just apply to _all_ of a category.
-    for packet in apply_to {
-        match packet {
-            PacketApplied::Asset(i) => {
-                if let Some(e) = gltf.asset.extensions.as_mut() {
-                    e.khr_xmp = Some(KhrXmpPacket { packet: Some(i) });
-                } else {
-                    gltf.asset.extensions = Some(PacketExtension {
-                        khr_xmp: Some(KhrXmpPacket { packet: Some(i) }),
-                        other_extensions: Default::default(),
-                    });
-                };
-            }
-            PacketApplied::Animations(i) => {
-                for animation in gltf.animations.as_mut().unwrap() {
-                    if let Some(e) = animation.extensions.as_mut() {
-                        e.khr_xmp = Some(KhrXmpPacket { packet: Some(i) });
-                    } else {
-                        animation.extensions = Some(PacketExtension {
-                            khr_xmp: Some(KhrXmpPacket { packet: Some(i) }),
-                            other_extensions: Default::default(),
-                        });
-                    };
-                }
-            }
-            PacketApplied::Images(i) => {
-                for image in gltf.images.as_mut().unwrap() {
-                    if let Some(e) = image.extensions.as_mut() {
-                        e.khr_xmp = Some(KhrXmpPacket { packet: Some(i) });
-                    } else {
-                        image.extensions = Some(PacketExtension {
-                            khr_xmp: Some(KhrXmpPacket { packet: Some(i) }),
-                            other_extensions: Default::default(),
-                        });
-                    };
-                }
-            }
-            PacketApplied::Materials(i) => {
-                for material in gltf.materials.as_mut().unwrap() {
-                    if let Some(e) = material.extensions.as_mut() {
-                        e.khr_xmp = Some(KhrXmpPacket { packet: Some(i) });
-                    } else {
-                        material.extensions = Some(PacketExtension {
-                            khr_xmp: Some(KhrXmpPacket { packet: Some(i) }),
-                            other_extensions: Default::default(),
-                        });
-                    };
-                }
-            }
-            PacketApplied::Meshes(i) => {
-                for mesh in gltf.meshes.as_mut().unwrap() {
-                    if let Some(e) = mesh.extensions.as_mut() {
-                        e.khr_xmp = Some(KhrXmpPacket { packet: Some(i) });
-                    } else {
-                        mesh.extensions = Some(PacketExtension {
-                            khr_xmp: Some(KhrXmpPacket { packet: Some(i) }),
-                            other_extensions: Default::default(),
-                        });
-                    };
-                }
-            }
-            PacketApplied::Nodes(i) => {
-                for node in gltf.nodes.as_mut().unwrap() {
-                    if let Some(e) = node.extensions.as_mut() {
-                        e.khr_xmp = Some(KhrXmpPacket { packet: Some(i) });
-                    } else {
-                        node.extensions = Some(PacketExtension {
-                            khr_xmp: Some(KhrXmpPacket { packet: Some(i) }),
-                            other_extensions: Default::default(),
-                        });
-                    };
-                }
-            }
-            PacketApplied::Scenes(i) => {
-                for scene in gltf.scenes.as_mut().unwrap() {
-                    if let Some(e) = scene.extensions.as_mut() {
-                        e.khr_xmp = Some(KhrXmpPacket { packet: Some(i) });
-                    } else {
-                        scene.extensions = Some(PacketExtension {
-                            khr_xmp: Some(KhrXmpPacket { packet: Some(i) }),
-                            other_extensions: Default::default(),
-                        });
-                    };
-                }
-            }
+//noinspection DuplicatedCode
+fn update_glb(
+    input_path: &Path,
+    output_path: &Path,
+    metadata: &KhrXmpJsonLd,
+    apply_to: Vec<PacketApplied>,
+    is_verbose: bool,
+) -> Result<(), Box<dyn Error>> {
+    log_if_verbose(
+        is_verbose,
+        format!(
+            "Opening & reading input file at path {}",
+            input_path.display()
+        )
+            .as_str(),
+    );
+    let input_reader = open_reader(input_path)?;
+    let glb = match Glb::from_reader(input_reader) {
+        Ok(g) => g,
+        Err(e) => return Err(e.into()),
+    };
+
+    let mut gltf: Gltf = serde_json::from_slice(glb.json.as_ref())?;
+
+    let cloned = metadata.clone();
+
+    if let Some(extensions) = gltf.extensions.as_mut() {
+        if let Some(xmp) = extensions.khr_xmp_json_ld.as_mut() {
+            // TODO: Validation to make sure the input file isn't incorrect.
+            xmp.packets = cloned.packets;
+        } else {
+            extensions.khr_xmp_json_ld = Some(KhrXmpJsonLd {
+                packets: cloned.packets
+            })
         }
+    } else {
+        gltf.extensions = Some(Extension {
+            khr_xmp: None,
+            khr_xmp_json_ld: Some(KhrXmpJsonLd {
+                packets: cloned.packets,
+            }),
+            other_extensions: Default::default(),
+        })
     }
+
+    if let Some(extensions_used) = gltf.extensions_used.as_mut() {
+        if !extensions_used.contains(&"KHR_xmp_json_ld".to_string()) {
+            extensions_used.push("KHR_xmp_json_ld".to_string())
+        }
+    } else {
+        gltf.extensions_used = Some(vec!["KHR_xmp_json_ld".to_string()])
+    }
+
+    let mut manager = KhrXmpJsonLdManager::new(gltf);
+
+    log_if_verbose(is_verbose, "Clearing all applied packets.");
+    manager.clear_applied_packets();
+    log_if_verbose(is_verbose, "Setting new packets.");
+    manager.set_applied_packets(apply_to);
+
+    let json_data = serde_json::to_string_pretty(manager.get_gltf())?;
+    let json_offset = align_to_multiple_of_four(glb.json.len() as u32);
+
+    let new_bin = glb.bin.unwrap_or_default().clone();
+    let new_glb = gltf::binary::Glb {
+        header: gltf::binary::Header {
+            magic: b"glTF".clone(),
+            version: 2,
+            length: json_offset + new_bin.len() as u32,
+        },
+        json: Cow::Owned(json_data.into_bytes()),
+        bin: Some(new_bin),
+    };
+
+    let writer = std::fs::File::create(output_path)?;
+    new_glb.to_writer(writer)?;
+
+    Ok(())
 }
 
 // TODO: Probably can find a better way to handle updating using traits. I need to clean up this duplicate code.
 //noinspection DuplicatedCode
-fn update_gltf(
+fn update_gltf_legacy(
     input_path: &Path,
     output_path: &Path,
     metadata: &KhrXmp,
@@ -359,7 +287,7 @@ fn update_gltf(
             "Opening & reading input file at path {}",
             input_path.display()
         )
-        .as_str(),
+            .as_str(),
     );
     let input_reader = open_reader(input_path)?;
     let mut gltf = read_gltf(input_reader)?;
@@ -370,6 +298,11 @@ fn update_gltf(
             // TODO: Validation to make sure the input file isn't incorrect.
             xmp.context = cloned.context;
             xmp.packets = cloned.packets;
+        } else {
+            extensions.khr_xmp = Some(KhrXmp {
+                context: cloned.context,
+                packets: cloned.packets,
+            })
         }
     } else {
         gltf.extensions = Some(Extension {
@@ -377,6 +310,7 @@ fn update_gltf(
                 context: cloned.context,
                 packets: cloned.packets,
             }),
+            khr_xmp_json_ld: None,
             other_extensions: Default::default(),
         })
     }
@@ -389,10 +323,12 @@ fn update_gltf(
         gltf.extensions_used = Some(vec!["KHR_xmp".to_string()])
     }
 
+    let mut manager = KhrXmpManager::new(gltf);
+
     log_if_verbose(is_verbose, "Clearing all applied packets.");
-    clear_applied_packets(&mut gltf);
+    manager.clear_applied_packets();
     log_if_verbose(is_verbose, "Setting new packets.");
-    set_applied_packets(&mut gltf, apply_to);
+    manager.set_applied_packets(apply_to);
 
     log_if_verbose(
         is_verbose,
@@ -400,16 +336,16 @@ fn update_gltf(
             "Opening & writing to output file at path {}",
             output_path.display()
         )
-        .as_str(),
+            .as_str(),
     );
     let output_writer = open_writer(output_path)?;
-    write_gltf(output_writer, &gltf)?;
+    write_gltf(output_writer, manager.get_gltf())?;
 
     Ok(())
 }
 
 //noinspection DuplicatedCode
-fn update_glb(
+fn update_glb_legacy(
     input_path: &Path,
     output_path: &Path,
     metadata: &KhrXmp,
@@ -439,6 +375,11 @@ fn update_glb(
             // TODO: Validation to make sure the input file isn't incorrect.
             xmp.context = cloned.context;
             xmp.packets = cloned.packets;
+        } else {
+            extensions.khr_xmp = Some(KhrXmp {
+                context: cloned.context,
+                packets: cloned.packets,
+            })
         }
     } else {
         gltf.extensions = Some(Extension {
@@ -446,6 +387,7 @@ fn update_glb(
                 context: cloned.context,
                 packets: cloned.packets,
             }),
+            khr_xmp_json_ld: None,
             other_extensions: Default::default(),
         })
     }
@@ -458,12 +400,14 @@ fn update_glb(
         gltf.extensions_used = Some(vec!["KHR_xmp".to_string()])
     }
 
-    log_if_verbose(is_verbose, "Clearing all applied packets.");
-    clear_applied_packets(&mut gltf);
-    log_if_verbose(is_verbose, "Setting new packets.");
-    set_applied_packets(&mut gltf, apply_to);
+    let mut manager = KhrXmpManager::new(gltf);
 
-    let json_data = serde_json::to_string_pretty(&gltf)?;
+    log_if_verbose(is_verbose, "Clearing all applied packets.");
+    manager.clear_applied_packets();
+    log_if_verbose(is_verbose, "Setting new packets.");
+    manager.set_applied_packets(apply_to);
+
+    let json_data = serde_json::to_string_pretty(manager.get_gltf())?;
     let json_offset = align_to_multiple_of_four(glb.json.len() as u32);
 
     let new_bin = glb.bin.unwrap_or_default().clone();
@@ -539,8 +483,9 @@ fn main() {
                 .short("j")
                 .long("json")
                 .value_name("JSON_FILE")
-                .help("Use JSON input file mode")
+                .help("Use raw JSON input file mode")
                 // .required_unless("xmp")
+                .required_unless("migrate")
                 .required_unless("list"), // .conflicts_with("xmp"),
         )
         // .arg(
@@ -552,6 +497,19 @@ fn main() {
         //         .required_unless("list")
         //         .conflicts_with("json"),
         // )
+        .arg(
+            Arg::with_name("legacy")
+                .long("legacy")
+                .conflicts_with("migrate")
+                .hidden(true)
+                .help("Go through the legacy KHR_xmp flow. Testing only. Do not use.")
+        )
+        .arg(
+            Arg::with_name("migrate")
+                .short("m")
+                .long("migrate")
+                .help("Migrate KHR_xmp data to KHR_xmp_json_ld data")
+        )
         .arg(
             Arg::with_name("verbose")
                 .short("v")
@@ -568,6 +526,16 @@ fn main() {
 
     // Check verbosity
     let verbose = matches.is_present("verbose");
+
+    // Check Legacy Mode
+    let is_legacy = matches.is_present("legacy");
+
+    // Check migration mode
+    let migration = matches.is_present("migrate");
+
+    if (migration) {
+        clean_exit(ExitCode::Error, Some("Migration mode not fully implemented."))
+    }
 
     // TODO: Fully implement apply_to logic.
     let apply_to = vec![PacketApplied::Asset(0)];
@@ -603,8 +571,8 @@ fn main() {
 
     if matches.is_present("list") {
         let result = match input_type {
-            InputType::Gltf => list_gltf_metadata(input_path),
-            InputType::Glb => list_glb_metadata(input_path),
+            InputType::Gltf => list_gltf_metadata(input_path, is_legacy),
+            InputType::Glb => list_glb_metadata(input_path, is_legacy),
         };
 
         return match result {
@@ -640,28 +608,56 @@ fn main() {
     };
     match mode {
         MetadataInputMode::JSON(p) => {
-            let metadata_path = Path::new(p.as_str());
-            let metadata = match open_reader(metadata_path) {
-                Ok(file) => read_json(file),
-                Err(e) => Err(e),
-            };
-            match metadata {
-                Ok(m) => match input_type {
-                    InputType::Gltf => {
-                        match update_gltf(input_path, output_path, &m, apply_to, verbose) {
-                            Err(e) => return exit_on_error(e),
-                            _ => (),
+            // TODO: Need to move this to the managers.
+            if is_legacy {
+                // KHR_xmp
+                let metadata_path = Path::new(p.as_str());
+                let metadata = match open_reader(metadata_path) {
+                    Ok(file) => read_legacy_json(file),
+                    Err(e) => Err(e),
+                };
+                match metadata {
+                    Ok(m) => match input_type {
+                        InputType::Gltf => {
+                            match update_gltf_legacy(input_path, output_path, &m, apply_to, verbose) {
+                                Err(e) => return exit_on_error(e),
+                                _ => (),
+                            }
                         }
-                    }
-                    InputType::Glb => {
-                        match update_glb(input_path, output_path, &m, apply_to, verbose) {
-                            Err(e) => return exit_on_error(e),
-                            _ => (),
+                        InputType::Glb => {
+                            match update_glb_legacy(input_path, output_path, &m, apply_to, verbose) {
+                                Err(e) => return exit_on_error(e),
+                                _ => (),
+                            }
                         }
                     },
-                },
-                Err(e) => return exit_on_error(e),
-            }
+                    Err(e) => return exit_on_error(e),
+                }
+            } else {
+                // KHR_xmp_json_ld
+                let metadata_path = Path::new(p.as_str());
+                let metadata = match open_reader(metadata_path) {
+                    Ok(file) => read_json(file),
+                    Err(e) => Err(e),
+                };
+                match metadata {
+                    Ok(m) => match input_type {
+                        InputType::Gltf => {
+                            match update_gltf(input_path, output_path, &m, apply_to, verbose) {
+                                Err(e) => return exit_on_error(e),
+                                _ => (),
+                            }
+                        }
+                        InputType::Glb => {
+                            match update_glb(input_path, output_path, &m, apply_to, verbose) {
+                                Err(e) => return exit_on_error(e),
+                                _ => (),
+                            }
+                        }
+                    },
+                    Err(e) => return exit_on_error(e),
+                }
+            };
         }
         MetadataInputMode::XMP(_path) => {
             // TODO: Add XMP file input support.

@@ -25,13 +25,13 @@ cargo run -- -i examples/Box.gltf --list
 To create a version of the Boombox sample with metadata use:
 
 ```shell script
-cargo run -- -i glTF-Sample-Models/2.0/BoomBox/glTF/BoomBox.gltf -o glTF-Sample-Models/2.0/BoomBox/glTF/BoomBox_metadata.gltf -j examples/sample.json
+cargo run -- -i glTF-Sample-Models/2.0/BoomBox/glTF/BoomBox.gltf -o glTF-Sample-Models/2.0/BoomBox/glTF/BoomBox_metadata.gltf -j examples/sample.khr_xmp.json
 ```
 
 You can also read and write from `.glb` files as well. To create a version of the DamagedHelmet binary glTF sample with metadata, use:
 
 ```shell script
-cargo run -- -i ./glTF-Sample-Models/2.0/DamagedHelmet/glTF-Binary/DamagedHelmet.glb -o DamagedHelmet_metadata.glb -j examples/sample.json
+cargo run -- -i ./glTF-Sample-Models/2.0/DamagedHelmet/glTF-Binary/DamagedHelmet.glb -o DamagedHelmet_metadata.glb -j examples/sample.khr_xmp.json
 ```
 
 # Available Arguments
@@ -49,6 +49,7 @@ cargo run -- -i ./glTF-Sample-Models/2.0/DamagedHelmet/glTF-Binary/DamagedHelmet
 
 This section is formatted as "PRIORITY: Milestone" to give an idea of how important the milestone is to final 1.0.0 release.
 
+ - CRITICAL: Migration flag to migrate from *KHR_xmp* to *KHR_xmp_json_ld*. 
  - CRITICAL: Pre-built binaries for each platform.
  - HIGH: Input via command-line parameters.
  - MEDIUM: Implement basic writing from XMP files to both `.glTF` and `.glb` files.
@@ -72,3 +73,9 @@ This section is formatted as "PRIORITY: Milestone" to give an idea of how import
 ## 1.0.0-alpha02
 
  - Full support for `.glb` files. Added example.
+
+## 1.0.0-alpha03
+
+ - Implemented support for the new *KHR_xmp_json_ld* extension replacing *KHR_xmp*.
+ - The `--legacy` switch is required for all operations using *KHR_xmp*. This includes listing existing *KHR_xmp* data.
+ - The `--migrate` switch has been added but is not usable yet. Will be released soon in the next release.
