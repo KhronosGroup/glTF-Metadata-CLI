@@ -1,0 +1,179 @@
+{
+  "asset": {
+    "version": "2.0",
+    "extensions": {
+      "KHR_xmp_json_ld": {
+        "packet": 0
+      }
+    },
+    "generator": "COLLADA2GLTF"
+  },
+  "extensionsUsed": [
+    "KHR_xmp_json_ld"
+  ],
+  "accessors": [
+    {
+      "max": [
+        23
+      ],
+      "min": [
+        0
+      ],
+      "componentType": 5123,
+      "type": "SCALAR",
+      "bufferView": 0,
+      "byteOffset": 0,
+      "count": 36
+    },
+    {
+      "count": 24,
+      "max": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "min": [
+        -1.0,
+        -1.0,
+        -1.0
+      ],
+      "type": "VEC3",
+      "componentType": 5126,
+      "byteOffset": 0,
+      "bufferView": 1
+    },
+    {
+      "max": [
+        0.5,
+        0.5,
+        0.5
+      ],
+      "type": "VEC3",
+      "componentType": 5126,
+      "bufferView": 1,
+      "count": 24,
+      "min": [
+        -0.5,
+        -0.5,
+        -0.5
+      ],
+      "byteOffset": 288
+    }
+  ],
+  "buffers": [
+    {
+      "uri": "Box0.bin",
+      "byteLength": 648
+    }
+  ],
+  "bufferViews": [
+    {
+      "target": 34963,
+      "byteOffset": 576,
+      "buffer": 0,
+      "byteLength": 72
+    },
+    {
+      "byteLength": 576,
+      "buffer": 0,
+      "byteStride": 12,
+      "byteOffset": 0,
+      "target": 34962
+    }
+  ],
+  "materials": [
+    {
+      "name": "Red",
+      "pbrMetallicRoughness": {
+        "baseColorFactor": [
+          0.800000011920929,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "metallicFactor": 0.0
+      }
+    }
+  ],
+  "meshes": [
+    {
+      "primitives": [
+        {
+          "attributes": {
+            "NORMAL": 1,
+            "POSITION": 2
+          },
+          "indices": 0,
+          "material": 0,
+          "mode": 4
+        }
+      ],
+      "name": "Mesh"
+    }
+  ],
+  "nodes": [
+    {
+      "matrix": [
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        -1.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "children": [
+        1
+      ]
+    },
+    {
+      "mesh": 0
+    }
+  ],
+  "scene": 0,
+  "scenes": [
+    {
+      "nodes": [
+        0
+      ]
+    }
+  ],
+  "extensions": {
+    "KHR_xmp_json_ld": {
+      "packets": [
+        {
+          "@context": {
+            "dc": "http://purl.org/dc/elements/1.1/",
+            "xmp": "http://ns.adobe.com/xap/1.0/"
+          },
+          "@id": "",
+          "dc:source": {
+            "@language": "en-us",
+            "@value": "Sample files for edge cases"
+          },
+          "dc:subject": {
+            "@context": {
+              "@language": "en-us"
+            },
+            "@set": [
+              "Sample File",
+              {
+                "@language": "de-de",
+                "@value": "Beispieldatei"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
+}

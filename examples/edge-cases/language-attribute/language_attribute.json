@@ -1,0 +1,27 @@
+{
+  "packets": [
+    {
+      "@context": {
+        "dc": "http://purl.org/dc/elements/1.1/",
+        "xmp": "http://ns.adobe.com/xap/1.0/"
+      },
+      "@id": "",
+      "dc:source": {
+        "@value": "Sample files for edge cases",
+        "@language": "en-us"
+      },
+      "dc:subject": {
+        "@set": [
+          "Sample File",
+          {
+            "@value": "Beispieldatei",
+            "@language": "de-de"
+          }
+        ],
+        "@context": {
+          "@language": "en-us"
+        }
+      }
+    }
+  ]
+}

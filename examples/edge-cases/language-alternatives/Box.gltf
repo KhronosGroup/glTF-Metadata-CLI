@@ -1,0 +1,174 @@
+{
+  "asset": {
+    "version": "2.0",
+    "extensions": {
+      "KHR_xmp_json_ld": {
+        "packet": 0
+      }
+    },
+    "generator": "COLLADA2GLTF"
+  },
+  "extensionsUsed": [
+    "KHR_xmp_json_ld"
+  ],
+  "accessors": [
+    {
+      "count": 36,
+      "max": [
+        23
+      ],
+      "byteOffset": 0,
+      "min": [
+        0
+      ],
+      "bufferView": 0,
+      "type": "SCALAR",
+      "componentType": 5123
+    },
+    {
+      "bufferView": 1,
+      "byteOffset": 0,
+      "max": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "min": [
+        -1.0,
+        -1.0,
+        -1.0
+      ],
+      "type": "VEC3",
+      "count": 24,
+      "componentType": 5126
+    },
+    {
+      "min": [
+        -0.5,
+        -0.5,
+        -0.5
+      ],
+      "max": [
+        0.5,
+        0.5,
+        0.5
+      ],
+      "count": 24,
+      "componentType": 5126,
+      "bufferView": 1,
+      "byteOffset": 288,
+      "type": "VEC3"
+    }
+  ],
+  "buffers": [
+    {
+      "uri": "Box0.bin",
+      "byteLength": 648
+    }
+  ],
+  "bufferViews": [
+    {
+      "buffer": 0,
+      "byteLength": 72,
+      "byteOffset": 576,
+      "target": 34963
+    },
+    {
+      "buffer": 0,
+      "byteLength": 576,
+      "byteOffset": 0,
+      "byteStride": 12,
+      "target": 34962
+    }
+  ],
+  "materials": [
+    {
+      "pbrMetallicRoughness": {
+        "baseColorFactor": [
+          0.800000011920929,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "metallicFactor": 0.0
+      },
+      "name": "Red"
+    }
+  ],
+  "meshes": [
+    {
+      "primitives": [
+        {
+          "attributes": {
+            "NORMAL": 1,
+            "POSITION": 2
+          },
+          "indices": 0,
+          "material": 0,
+          "mode": 4
+        }
+      ],
+      "name": "Mesh"
+    }
+  ],
+  "nodes": [
+    {
+      "children": [
+        1
+      ],
+      "matrix": [
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        -1.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    {
+      "mesh": 0
+    }
+  ],
+  "scene": 0,
+  "scenes": [
+    {
+      "nodes": [
+        0
+      ]
+    }
+  ],
+  "extensions": {
+    "KHR_xmp_json_ld": {
+      "packets": [
+        {
+          "@context": {
+            "dc": "http://purl.org/dc/elements/1.1/",
+            "rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+          },
+          "@id": "",
+          "dc:title": {
+            "@type": "rdf:Alt",
+            "rdf:_1": {
+              "@language": "en-us",
+              "@value": "MyModel"
+            },
+            "rdf:_2": {
+              "@language": "it-it",
+              "@value": "Mio Modello"
+            }
+          }
+        }
+      ]
+    }
+  }
+}
